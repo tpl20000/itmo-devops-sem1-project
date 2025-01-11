@@ -1,4 +1,7 @@
 #!/bin/bash
 
+echo "Building application..."
+go build -o sem1-proj .
+
 echo "Running program..."
-go run .
+nohup ./sem1-proj > output.log
