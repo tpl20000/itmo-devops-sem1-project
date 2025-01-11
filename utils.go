@@ -3,10 +3,12 @@ package main
 import (
 	"archive/zip"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 // Unzip a ZIP file
@@ -44,11 +46,31 @@ func Unzip(src string, dest string) error {
 	return nil
 }
 
-// Read a CSV file and return a PriceData struct
-func ReadCSV(filePath string) (PriceData, error) {
+// findFirstCSVFile finds the first CSV file in a directory
+func findFirstCSVFile(dir string) (string, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		if filepath.Ext(file.Name()) == ".csv" {
+			return filepath.Join(dir, file.Name()), nil
+		}
+	}
+
+	return "", fmt.Errorf("no CSV file found")
+}
+
+// ReadCSV reads a CSV file and returns a slice of PriceData
+func ReadCSV(filePath string) ([]PriceData, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return PriceData{}, err
+		return nil, err
 	}
 	defer file.Close()
 
@@ -57,13 +79,12 @@ func ReadCSV(filePath string) (PriceData, error) {
 	reader.Comment = '#'
 	reader.FieldsPerRecord = -1
 
-	var data PriceData
-	categories := make(map[string]bool)
+	var data []PriceData
 
 	// Skip the header row
 	_, err = reader.Read()
 	if err != nil {
-		return PriceData{}, err
+		return nil, err
 	}
 
 	for {
@@ -72,20 +93,31 @@ func ReadCSV(filePath string) (PriceData, error) {
 			break
 		}
 		if err != nil {
-			return PriceData{}, err
+			return nil, err
 		}
 
 		// Parse the record
-		price, err := strconv.Atoi(record[3]) // Assuming price is in the 4th column
+		price, err := strconv.ParseFloat(record[3], 64)
 		if err != nil {
-			return PriceData{}, err
+			return nil, err
 		}
 
-		data.TotalItems++
-		categories[record[2]] = true // Assuming category is in the 3rd column
-		data.TotalPrice += price
+		createDate, err := time.Parse("2006-01-02", record[4])
+		if err != nil {
+			return nil, err
+		}
+
+		// Create a PriceData instance
+		priceData := PriceData{
+			Name:        record[0],
+			Category:    record[1],
+			Price:       price,
+			Create_date: createDate,
+		}
+
+		// Append the PriceData instance to the slice
+		data = append(data, priceData)
 	}
 
-	data.TotalCategories = len(categories)
 	return data, nil
 }
