@@ -13,7 +13,7 @@ go mod tidy
 
 # Create the 'prices' table in the database
 echo "Creating 'prices' table..."
-PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -h $POSTGRES_HOST -p $POSTGRES_PORT -d $POSTGRES_DB -c "
+PGPASSWORD=$DB_PASSWD psql -U $DB_USER -h $DB_HOST -p $DB_PORT -d $DB_NAME -c "
 CREATE TABLE IF NOT EXISTS prices (
     id SERIAL PRIMARY KEY,
     manufacture_date DATE NOT NULL,
