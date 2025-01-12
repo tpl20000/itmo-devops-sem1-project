@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+	"bytes"
 )
 
 // Unzip a ZIP file
@@ -44,6 +45,43 @@ func Unzip(src string, dest string) error {
 	}
 
 	return nil
+}
+
+// Zip compresses a file and returns the resulting ZIP file as an array of bytes
+func Zip(filePath string) ([]byte, error) {
+	// Open the file to be zipped
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	// Create a new ZIP file
+	zipFile := new(bytes.Buffer)
+
+	// Create a ZIP writer
+	zipWriter := zip.NewWriter(zipFile)
+
+	// Create a new file in the ZIP archive
+	f, err := zipWriter.Create(filepath.Base(filePath))
+	if err != nil {
+		return nil, err
+	}
+
+	// Copy the file to the ZIP archive
+	_, err = io.Copy(f, file)
+	if err != nil {
+		return nil, err
+	}
+
+	// Close the ZIP writer
+	err = zipWriter.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the ZIP file as an array of bytes
+	return zipFile.Bytes(), nil
 }
 
 // findFirstCSVFile finds the first CSV file in a directory

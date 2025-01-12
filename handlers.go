@@ -1,7 +1,6 @@
 package main
 
 import (
-	"archive/zip"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
-	"bytes"
 )
 
 type PriceData struct {
@@ -167,18 +165,22 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert the response to a byte array
-	jsonData, err := json.Marshal(response)
-	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Unable to marshal data to JSON", http.StatusInternalServerError)
-		return
-	}
+	//jsonData, err := json.Marshal(response)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	http.Error(w, "Unable to marshal data to JSON", http.StatusInternalServerError)
+	//	return
+	//}
 
-	fmt.Println("POST handled! Responce: ", string(jsonData))
+	//fmt.Println("POST handled! Responce: ", string(jsonData))
 
 	// Write the JSON data to the response writer
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonData)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		fmt.Println(err)
+		http.Error(w, "Unable to parse JSON", http.StatusInternalServerError)
+	}
+	//w.Write(jsonData)
 
 }
 
@@ -200,7 +202,7 @@ func HandleGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unable to create temp directory", http.StatusInternalServerError)
 		return
 	}
-	//defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir)
 
 	// Create a CSV file in the temporary directory
 	csvPath := filepath.Join(tempDir, "data.csv")
@@ -249,38 +251,10 @@ func HandleGet(w http.ResponseWriter, r *http.Request) {
 
 	csvWriter.Flush()
 
-	// Zip the CSV file
-	zipPath := filepath.Join(tempDir, "response.zip")
-	zipFile, err := os.Create(zipPath)
+	zipByteBuf, err := Zip(csvPath)
 	if err != nil {
 		fmt.Println(err)
-		http.Error(w, "Unable to create ZIP file", http.StatusInternalServerError)
-		return
-	}
-	defer zipFile.Close()
-
-	zipWriter := zip.NewWriter(zipFile)
-	defer zipWriter.Close()
-
-	content, err := os.ReadFile(csvPath)
-	fmt.Println("File contains: ", string(content))
-
-	// Create a new file in the ZIP archive
-	archiveWriter, err := zipWriter.Create("data.csv")
-	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Unable to create file in ZIP archive", http.StatusInternalServerError)
-		return
-	}
-
-	archiveWriter.Write(content)
-	zipWriter.Flush()
-
-	archiveReader, err := os.ReadFile(zipPath)
-	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Unable to read file in ZIP archive", http.StatusInternalServerError)
-		return
+		http.Error(w, "Unable to create zip file", http.StatusInternalServerError)
 	}
 
 	// Return the ZIP file as the response
@@ -288,10 +262,9 @@ func HandleGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "attachment; filename=response.zip")
 	w.WriteHeader(http.StatusOK)
 
-	fmt.Println("Serving file: ", zipPath)
-	fmt.Println("Sending ", len(archiveReader), " bytes")
+	fmt.Println("Sending ", len(zipByteBuf), " bytes")
 
-	w.Write(archiveReader)
+	w.Write(zipByteBuf)
 
 	//http.ServeFile(w, r, zipPath)
 	fmt.Println("GET handled!")
