@@ -88,7 +88,7 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Insert data into the database
+	// Insert data into the database and calculate total categories and price
 	tx, err := db.Begin()
 	if err != nil {
 		fmt.Println(err)
@@ -105,8 +105,8 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 	defer stmt.Close()
 
 	var totalItems int
-	var totalCategories int
 	var totalPrice float64
+	var categories []string
 
 	for _, priceData := range data {
 		_, err = stmt.Exec(priceData.Name, priceData.Category, priceData.Price, priceData.Create_date)
@@ -118,35 +118,13 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 
 		totalItems++
 		totalPrice += priceData.Price
-
-		// Check if category is already counted
-		var count int
-		err = db.QueryRow("SELECT COUNT(*) FROM prices WHERE product_category = $1", priceData.Category).Scan(&count)
-		if err != nil {
-			fmt.Println(err)
-			http.Error(w, "Unable to query database", http.StatusInternalServerError)
-			return
-		}
-
-		if count == 1 {
-			totalCategories++
-		}
+		categories = append(categories, priceData.Category)
 	}
 
 	err = tx.Commit()
 	if err != nil {
 		fmt.Println(err)
 		http.Error(w, "Unable to commit transaction", http.StatusInternalServerError)
-		return
-	}
-
-	// Get total categories and total price from database
-	var totalCategoriesDB int
-	var totalPriceDB float64
-	err = db.QueryRow("SELECT COUNT(DISTINCT product_category), SUM(product_price) FROM prices").Scan(&totalCategoriesDB, &totalPriceDB)
-	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Unable to query database", http.StatusInternalServerError)
 		return
 	}
 
@@ -160,28 +138,16 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 	// Marshal the response to JSON
 	response := Response{
 		ItemsAdded:      totalItems,
-		TotalCategories: totalCategoriesDB,
-		TotalPrice:      totalPriceDB,
+		TotalCategories: len(removeDuplicates(categories)),
+		TotalPrice:      totalPrice,
 	}
 
 	// Convert the response to a byte array
-	//jsonData, err := json.Marshal(response)
-	//if err != nil {
-	//	fmt.Println(err)
-	//	http.Error(w, "Unable to marshal data to JSON", http.StatusInternalServerError)
-	//	return
-	//}
-
-	//fmt.Println("POST handled! Responce: ", string(jsonData))
-
-	// Write the JSON data to the response writer
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		fmt.Println(err)
 		http.Error(w, "Unable to parse JSON", http.StatusInternalServerError)
 	}
-	//w.Write(jsonData)
-
 }
 
 // HandleGet processes a GET request to retrieve all data from the database
@@ -265,7 +231,4 @@ func HandleGet(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Sending ", len(zipByteBuf), " bytes")
 
 	w.Write(zipByteBuf)
-
-	//http.ServeFile(w, r, zipPath)
-	fmt.Println("GET handled!")
 }

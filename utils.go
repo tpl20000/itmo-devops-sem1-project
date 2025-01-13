@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
-	"bytes"
 )
 
 // Unzip a ZIP file
@@ -158,4 +158,17 @@ func ReadCSV(filePath string) ([]PriceData, error) {
 	}
 
 	return data, nil
+}
+
+// removeDuplicates removes duplicate elements from a slice
+func removeDuplicates(s []string) []string {
+	var result []string
+	seen := make(map[string]bool)
+	for _, v := range s {
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+	return result
 }
