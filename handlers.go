@@ -93,6 +93,7 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println(err)
 		http.Error(w, "Unable to begin transaction", http.StatusInternalServerError)
+		tx.Rollback()
 		return
 	}
 
@@ -115,16 +116,43 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Unable to execute statement", http.StatusInternalServerError)
 			return
 		}
+	}
+
+	rows, err := tx.Query("SELECT product_category, product_price FROM prices")
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "Unable to query database", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var category string
+		var price float64
+		if err := rows.Scan(&category, &price); err != nil {
+			fmt.Println(err)
+			http.Error(w, "Unable to scan row", http.StatusInternalServerError)
+			return
+		}
 
 		totalItems++
-		totalPrice += priceData.Price
-		categories = append(categories, priceData.Category)
+		totalPrice += price
+		categories = append(categories, category)
 	}
+
+	if err = rows.Err(); err != nil {
+		fmt.Println(err)
+		http.Error(w, "Error during row iteration", http.StatusInternalServerError)
+		return
+	}
+
+	uniqueCategories := removeDuplicates(categories)
 
 	err = tx.Commit()
 	if err != nil {
 		fmt.Println(err)
 		http.Error(w, "Unable to commit transaction", http.StatusInternalServerError)
+		tx.Rollback()
 		return
 	}
 
@@ -138,7 +166,7 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 	// Marshal the response to JSON
 	response := Response{
 		ItemsAdded:      totalItems,
-		TotalCategories: len(removeDuplicates(categories)),
+		TotalCategories: len(uniqueCategories),
 		TotalPrice:      totalPrice,
 	}
 
